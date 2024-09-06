@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="egovframework.example.sample.service.impl.DeptMapper">
+	<select id="getDept">
+		select 
+			d.id,
+			d.deptno,
+			d.dname,
+			d.loc
+		from dept d
+	</select>
+	<insert id="insertDept" parameterType="egovframework.example.param.DeptParameter">
+		insert into dept(deptno, dname, loc) values(#{deptno}, #{dname}, #{loc})
+	</insert>
+</mapper>
