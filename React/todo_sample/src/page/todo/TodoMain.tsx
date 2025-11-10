@@ -2,7 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { Todo } from '../../model/model';
 
 export default function TodoMain() {
-  const [todoList, setTodoList] = useState<Array<Todo>>([]);
+  const [todoList, setTodoList] = useState<Array<Todo>>([
+    {
+      id: 1,
+      message: 'Hello, World',
+      atSchedule: new Date('2025-08-01'),
+    },
+    { id: 2, message: 'Hello, World', atSchedule: new Date('2025-08-01') },
+    { id: 3, message: 'Hello, World', atSchedule: new Date('2025-08-01') },
+    { id: 4, message: 'Hello, World', atSchedule: new Date('2025-08-01') },
+    { id: 5, message: 'Hello, World', atSchedule: new Date('2025-08-01') },
+  ]);
 
   useEffect(() => {
     // 최초 할일리스트 요청
