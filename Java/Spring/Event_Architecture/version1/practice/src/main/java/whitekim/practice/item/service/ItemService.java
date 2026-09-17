@@ -2,6 +2,7 @@ package whitekim.practice.item.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import whitekim.practice.common.exception.NotExistItemException;
 import whitekim.practice.common.exception.NotExistOrderedItemException;
@@ -17,6 +18,7 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class ItemService {
     private final ItemRepository itemRepository;
+    private final ApplicationEventPublisher publisher;
 
     public RespItemInfo getItemInfo(Long itemId) {
         Item item = itemRepository
@@ -34,26 +36,19 @@ public class ItemService {
         return saveItem.getId();
     }
 
-    public BigDecimal calPurchasePrice(Long itemId, Long purchaseCount) {
-        Item item = itemRepository
-                .findById(itemId)
-                .orElseThrow(NotExistOrderedItemException::new);
-
-        // 가격 반환
-        return item.getPrice().multiply(BigDecimal.valueOf(purchaseCount));
-    }
-
     /**
      *
      * @param itemId
      * @param purchaseCount
      */
-    public void manageInventory(Long itemId, Long purchaseCount) {
+    public BigDecimal purchase(Long itemId, Long purchaseCount) {
         Item item = itemRepository
                 .findById(itemId)
                 .orElseThrow(NotExistOrderedItemException::new);
 
-        item.manageInventory(purchaseCount);
+        item.manageInventory(purchaseCount);    // 재고 확인 후 선점
+
+        return item.getPrice().multiply(BigDecimal.valueOf(purchaseCount)); // 금액 반환
 
 //        @NOTE 나중에 이벤트로 바뀌면 그때 사용 고려
 //        if(ItemManageType.ROLLBACK.equals(type)) {

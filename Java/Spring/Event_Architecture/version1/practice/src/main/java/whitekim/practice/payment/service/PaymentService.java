@@ -2,11 +2,13 @@ package whitekim.practice.payment.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import whitekim.practice.common.exception.InvalidPaymentException;
 import whitekim.practice.payment.dto.request.ChargePaymentInfo;
 import whitekim.practice.payment.dto.response.RespPaymentInfo;
 import whitekim.practice.payment.entity.Payment;
+import whitekim.practice.payment.event.PaymentSuccessEvent;
 import whitekim.practice.payment.repository.PaymentRepository;
 import whitekim.practice.payment.type.PaymentStatus;
 
@@ -18,6 +20,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class PaymentService {
     private final PaymentRepository paymentRepository;
+    private final ApplicationEventPublisher publisher;
 
     public RespPaymentInfo getPaymentInfo(Long paymentId) {
         Payment payment = paymentRepository
@@ -35,6 +38,7 @@ public class PaymentService {
         payment.changePaymentStatus(PaymentStatus.CONFIRM);
 
         Payment paymentResult = paymentRepository.save(payment);
+        publisher.publishEvent(new PaymentSuccessEvent(null, paymentResult.getId(), chargeInfo.chargePrice()));
 
         return paymentResult.getId();
     }

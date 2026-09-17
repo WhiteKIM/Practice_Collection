@@ -1,10 +1,10 @@
 package whitekim.practice;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
 import whitekim.practice.common.exception.InvalidPaymentException;
 import whitekim.practice.common.exception.NotEnoughItemStockException;
 import whitekim.practice.item.dto.request.RegisterItemForm;
@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
-@Transactional
 class PracticeApplicationTests {
 	@Autowired
 	private ItemService itemService;
@@ -44,6 +43,7 @@ class PracticeApplicationTests {
 	 * → 재고 8
 	 */
 	@Test
+	@Transactional
 	void scenario1() {
 		// 데이터 생성
 		JoinMember joinMember = new JoinMember("test", "test@test.com");
@@ -66,6 +66,7 @@ class PracticeApplicationTests {
 	 * 	 → NotEnoughItemStockException
 	 */
 	@Test
+	@Transactional
 	void scenario2() {
 		JoinMember joinMember = new JoinMember("test", "test@test.com");
 		RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
@@ -87,6 +88,7 @@ class PracticeApplicationTests {
 	 * → 재고 감소
 	 */
 	@Test
+	@Transactional
 	void scenario3() {
 		JoinMember joinMember = new JoinMember("test", "test@test.com");
 		RegisterItemForm itemForm = new RegisterItemForm(10L, "사과", BigDecimal.valueOf(1000));
@@ -138,7 +140,10 @@ class PracticeApplicationTests {
 		List<RespOrderInfo> allOrderInfo = orderService.getAllOrderInfo();
 		List<RespPaymentInfo> allPaymentInfo = paymentService.getAllPaymentInfo();
 
+		System.out.println("주문 정보 확인");
 		assertThat(allOrderInfo.size()).isEqualTo(0);	// 생성된 주문이 있으면 안돼요
+
+		System.out.println("결제 정보 확인");
 		assertThat(allPaymentInfo.size()).isEqualTo(0);	// 생성된 결제정보는 있으면 안돼요
 
 		// 수량 변함 없음
@@ -152,6 +157,7 @@ class PracticeApplicationTests {
 	 * → 재고 변하지 않음
 	 */
 	@Test
+	@Transactional
 	void scenario5() {
 		// 데이터 생성
 		JoinMember joinMember = new JoinMember("test", "test@test.com");

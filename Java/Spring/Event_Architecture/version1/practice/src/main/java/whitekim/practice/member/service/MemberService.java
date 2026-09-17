@@ -2,6 +2,7 @@ package whitekim.practice.member.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import whitekim.practice.common.exception.NotExistMemberException;
 import whitekim.practice.member.dto.request.JoinMember;
@@ -16,6 +17,7 @@ import java.util.Optional;
 @Transactional
 public class MemberService {
     private final MemberRepository memberRepository;
+    private final ApplicationEventPublisher publisher;
 
     public RespMemberInfo findByMemberInfo(Long memberId) {
         Member member = memberRepository
