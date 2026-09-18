@@ -56,9 +56,6 @@ public class OrderService {
         // 청구 전송
         publisher.publishEvent(new PaymentRequestEvent(order.getId(), order.getMemberId(), purchasePrice));
 
-        // 주문 상태는 무조건 정상이라고 현재는 판단 => 추후 payment 상태에 따라 판단이 필요
-        // @NOTE : 나중에 결제 실패 시 재고 원복하는 로직 필요 | 주문상태도 변경 필요
-
         return order.getId();
     }
 
@@ -77,11 +74,11 @@ public class OrderService {
         order.processPayment(paymentId, chargeAmount);
     }
 
-    // 접근은 할 수 없는 기능
     public void processFailedPayment(Long orderId) {
         Order order =
                 orderRepository.findById(orderId).orElseThrow(() -> new NotExistOrderException(orderId));
 
+        // 주문상태 업데이트 : 실패
         order.changeOrderStatus(OrderStatus.FAILED);
     }
 }

@@ -1,11 +1,10 @@
 package whitekim.practice;
 
-import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
-import whitekim.practice.common.exception.InvalidPaymentException;
+import whitekim.practice.common.config.AppConfig;
 import whitekim.practice.common.exception.NotEnoughItemStockException;
 import whitekim.practice.item.dto.request.RegisterItemForm;
 import whitekim.practice.item.dto.response.RespItemInfo;
@@ -35,7 +34,10 @@ class PracticeApplicationTests {
 	private MemberService memberService;
 	@Autowired
 	private PaymentService paymentService;
+	@Autowired
+	private AppConfig config;
 
+	/* ====================== PHASE 0 ===================================================*/
 	/**
 	 * ① 재고 차감 성공
 	 * 재고 10
@@ -175,4 +177,51 @@ class PracticeApplicationTests {
 		RespItemInfo itemInfo = itemService.getItemInfo(itemId);
 		assertThat(itemInfo.itemStock()).isEqualTo(1L);
 	}
+	/* ====================== PHASE 0 END================================================*/
+	/* ====================== PHASE 1 ===================================================*/
+
+	// 주문 결제처리 완료 => 주문상태 : 승인 | 결제 ID 세팅
+	@Test
+	@Transactional
+	void scenario6() {
+		// 결제처리 : 가능
+		config.changePaymentState(true);
+
+		// 데이터 생성
+		JoinMember joinMember = new JoinMember("test", "test@test.com");
+		RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
+
+		Long memberId = memberService.joinMember(joinMember);
+		Long itemId = itemService.registerItemInfo(itemForm);
+
+		Long orderId = orderService.processOrder(new ReqOrderInfo(itemId, memberId, 1L));
+		RespOrderInfo orderInfo = orderService.getOrderInfo(orderId);
+
+		assertThat(orderId).isNotNull();
+		assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.APPROVED);
+		assertThat(orderInfo.paymentId()).isNotNull();
+	}
+
+	// 주문 결제처리 실패 => 주문상태 : 실패 | 결제정보 : X
+	@Test
+	@Transactional
+	void scenario7() {
+		// 결제처리 : 불가능
+		config.changePaymentState(false);
+
+		// 데이터 생성
+		JoinMember joinMember = new JoinMember("test", "test@test.com");
+		RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
+
+		Long memberId = memberService.joinMember(joinMember);
+		Long itemId = itemService.registerItemInfo(itemForm);
+
+		Long orderId = orderService.processOrder(new ReqOrderInfo(itemId, memberId, 1L));
+		RespOrderInfo orderInfo = orderService.getOrderInfo(orderId);
+
+		assertThat(orderId).isNotNull();
+		assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.FAILED);
+	}
+
+	/* ====================== PHASE 1  END ===================================================*/
 }

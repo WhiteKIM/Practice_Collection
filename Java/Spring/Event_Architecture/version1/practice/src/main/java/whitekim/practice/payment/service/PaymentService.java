@@ -1,13 +1,16 @@
 package whitekim.practice.payment.service;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import whitekim.practice.common.config.AppConfig;
 import whitekim.practice.common.exception.InvalidPaymentException;
 import whitekim.practice.payment.dto.request.ChargePaymentInfo;
 import whitekim.practice.payment.dto.response.RespPaymentInfo;
 import whitekim.practice.payment.entity.Payment;
+import whitekim.practice.payment.event.PaymentFailedEvent;
 import whitekim.practice.payment.event.PaymentSuccessEvent;
 import whitekim.practice.payment.repository.PaymentRepository;
 import whitekim.practice.payment.type.PaymentStatus;
@@ -19,6 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PaymentService {
     private final PaymentRepository paymentRepository;
+    private final AppConfig config;
     private final ApplicationEventPublisher publisher;
 
     public RespPaymentInfo getPaymentInfo(Long paymentId) {
@@ -29,11 +33,14 @@ public class PaymentService {
         return RespPaymentInfo.toDto(payment);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Long chargePayment(ChargePaymentInfo chargeInfo) {
-        Payment payment = chargeInfo.toEntity();
+        if(!config.isAvailableProcessPayment()) {
+            publisher.publishEvent(new PaymentFailedEvent(chargeInfo.orderId()));
+            throw new InvalidPaymentException("현재 결제를 처리할 수 없습니다.");
+        }
 
-        // 먼저 결제청구 의뢰를 수행
-        // 결제는 성공으로 왔다고 가정함
+        Payment payment = chargeInfo.toEntity();
         payment.changePaymentStatus(PaymentStatus.CONFIRM);
 
         Payment paymentResult = paymentRepository.save(payment);
