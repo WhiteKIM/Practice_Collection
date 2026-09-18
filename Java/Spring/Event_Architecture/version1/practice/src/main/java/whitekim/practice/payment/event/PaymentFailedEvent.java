@@ -7,10 +7,8 @@ import java.math.BigDecimal;
 @Getter
 public class PaymentFailedEvent {
     private Long orderId;
-    private BigDecimal chargeAmount;
 
-    public PaymentFailedEvent(Long orderId, BigDecimal chargeAmount) {
+    public PaymentFailedEvent(Long orderId, Long paymentId, BigDecimal chargeAmount) {
         this.orderId = orderId;
-        this.chargeAmount = chargeAmount;
     }
 }

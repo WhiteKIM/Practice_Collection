@@ -6,17 +6,14 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import whitekim.practice.common.exception.NotExistMemberException;
 import whitekim.practice.common.exception.NotExistOrderException;
-import whitekim.practice.item.event.SuccessOrderingItemEvent;
 import whitekim.practice.item.service.ItemService;
-import whitekim.practice.member.event.CheckExistMemberEvent;
 import whitekim.practice.member.service.MemberService;
 import whitekim.practice.order.dto.request.ReqOrderInfo;
 import whitekim.practice.order.dto.response.RespOrderInfo;
 import whitekim.practice.order.entity.Order;
-import whitekim.practice.order.event.RequestOrderPayment;
 import whitekim.practice.order.repository.OrderRepository;
-import whitekim.practice.payment.dto.request.ChargePaymentInfo;
-import whitekim.practice.payment.service.PaymentService;
+import whitekim.practice.order.type.OrderStatus;
+import whitekim.practice.payment.event.PaymentRequestEvent;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -25,6 +22,8 @@ import java.util.List;
 @Transactional
 @RequiredArgsConstructor
 public class OrderService {
+    private final MemberService memberService;
+    private final ItemService itemService;
     private final OrderRepository orderRepository;
     private final ApplicationEventPublisher publisher;
 
@@ -40,11 +39,7 @@ public class OrderService {
 
     public Long processOrder(ReqOrderInfo orderInfo) {
         // 멤버 여부 확인
-        CheckExistMemberEvent checkExistMemberEvent = new CheckExistMemberEvent(orderInfo.memberId());
-        publisher.publishEvent(checkExistMemberEvent);
-//        boolean isExist = memberService.existMemberById(orderInfo.memberId());
-
-        boolean isExist = checkExistMemberEvent.isExist();
+        boolean isExist = memberService.existMemberById(orderInfo.memberId());
 
         // 없는데 계속진행하려고?
         if(!isExist) {
@@ -56,20 +51,10 @@ public class OrderService {
 
         // 주문 전 아이템 재고 확보
         // 주문 전 예샹결제 금액 반환
-        SuccessOrderingItemEvent orderingItemEvent = new SuccessOrderingItemEvent(orderInfo.itemId(), orderInfo.purchaseCount());
-        publisher.publishEvent(orderingItemEvent);
-        BigDecimal purchasePrice = orderingItemEvent.getPurchasePrice();
-
-//        BigDecimal purchasePrice = itemService.purchase(orderInfo.itemId(), orderInfo.purchaseCount());
+        BigDecimal purchasePrice = itemService.purchase(orderInfo.itemId(), orderInfo.purchaseCount());
 
         // 청구 전송
-        RequestOrderPayment requestOrderPayment = new RequestOrderPayment(purchasePrice, order.getId(), orderInfo.memberId());
-        publisher.publishEvent(requestOrderPayment);
-
-        // Long paymentId = paymentService.chargePayment(new ChargePaymentInfo(purchasePrice, orderInfo.memberId()));
-
-        // 주문 최종 생성
-        order.processPayment(requestOrderPayment.getPaymentId(), purchasePrice);
+        publisher.publishEvent(new PaymentRequestEvent(order.getId(), order.getMemberId(), purchasePrice));
 
         // 주문 상태는 무조건 정상이라고 현재는 판단 => 추후 payment 상태에 따라 판단이 필요
         // @NOTE : 나중에 결제 실패 시 재고 원복하는 로직 필요 | 주문상태도 변경 필요
@@ -82,5 +67,21 @@ public class OrderService {
                 .stream()
                 .map(o -> RespOrderInfo.toDto(o))
                 .toList();
+    }
+
+    public void processSuccessPayment(Long orderId, Long paymentId, BigDecimal chargeAmount) {
+        Order order =
+                orderRepository.findById(orderId).orElseThrow(() -> new NotExistOrderException(orderId));
+
+        // 주문 최종 생성
+        order.processPayment(paymentId, chargeAmount);
+    }
+
+    // 접근은 할 수 없는 기능
+    public void processFailedPayment(Long orderId) {
+        Order order =
+                orderRepository.findById(orderId).orElseThrow(() -> new NotExistOrderException(orderId));
+
+        order.changeOrderStatus(OrderStatus.FAILED);
     }
 }

@@ -6,7 +6,8 @@ import java.math.BigDecimal;
 
 public record ChargePaymentInfo(
         BigDecimal chargePrice,
-        Long memberId
+        Long memberId,
+        Long orderId
 ) {
     public ChargePaymentInfo {
         // 0원 이벤트 상품 포함 결제처리

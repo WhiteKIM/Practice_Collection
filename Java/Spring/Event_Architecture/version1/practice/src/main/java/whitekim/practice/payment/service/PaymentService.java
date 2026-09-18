@@ -13,7 +13,6 @@ import whitekim.practice.payment.repository.PaymentRepository;
 import whitekim.practice.payment.type.PaymentStatus;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @Transactional
@@ -38,7 +37,7 @@ public class PaymentService {
         payment.changePaymentStatus(PaymentStatus.CONFIRM);
 
         Payment paymentResult = paymentRepository.save(payment);
-        publisher.publishEvent(new PaymentSuccessEvent(null, paymentResult.getId(), chargeInfo.chargePrice()));
+        publisher.publishEvent(new PaymentSuccessEvent(chargeInfo.orderId(), paymentResult.getId(), chargeInfo.chargePrice()));
 
         return paymentResult.getId();
     }
