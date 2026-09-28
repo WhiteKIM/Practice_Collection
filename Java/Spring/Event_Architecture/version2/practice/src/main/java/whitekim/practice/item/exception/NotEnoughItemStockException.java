@@ -1,4 +1,4 @@
-package whitekim.practice.common.exception;
+package whitekim.practice.item.exception;
 
 public class NotEnoughItemStockException extends RuntimeException {
     public NotEnoughItemStockException(Long itemStock, Long requestItemStock) {

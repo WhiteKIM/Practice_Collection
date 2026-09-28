@@ -4,9 +4,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.modulith.core.ApplicationModules;
 import org.springframework.transaction.annotation.Transactional;
 import whitekim.practice.common.config.AppConfig;
-import whitekim.practice.common.exception.NotEnoughItemStockException;
+import whitekim.practice.item.exception.NotEnoughItemStockException;
 import whitekim.practice.item.dto.request.RegisterItemForm;
 import whitekim.practice.item.dto.response.RespItemInfo;
 import whitekim.practice.item.service.ItemService;
@@ -234,4 +235,10 @@ class PracticeApplicationTests {
 	}
 
 	/* ====================== PHASE 1  END ===================================================*/
+	/* ====================== PHASE 2  START ==================================================*/
+	@Test
+	void verifyModularity() {
+		ApplicationModules.of(PracticeApplication.class)
+				.verify();
+	}
 }

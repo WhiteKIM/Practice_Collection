@@ -4,8 +4,8 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import whitekim.practice.common.exception.InvalidPurchaseException;
-import whitekim.practice.common.exception.NotEnoughItemStockException;
+import whitekim.practice.item.exception.InvalidPurchaseException;
+import whitekim.practice.item.exception.NotEnoughItemStockException;
 
 import java.math.BigDecimal;
 

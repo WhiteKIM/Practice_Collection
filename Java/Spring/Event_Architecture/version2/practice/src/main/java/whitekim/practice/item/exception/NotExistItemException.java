@@ -1,4 +1,4 @@
-package whitekim.practice.common.exception;
+package whitekim.practice.item.exception;
 
 public class NotExistItemException extends RuntimeException {
     public NotExistItemException() {

@@ -1,4 +1,4 @@
-package whitekim.practice.common.exception;
+package whitekim.practice.item.exception;
 
 public class InvalidPurchaseException extends RuntimeException {
     public InvalidPurchaseException(Long purchaseCount) {

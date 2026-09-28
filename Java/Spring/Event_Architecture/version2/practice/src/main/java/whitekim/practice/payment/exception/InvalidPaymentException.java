@@ -1,4 +1,4 @@
-package whitekim.practice.common.exception;
+package whitekim.practice.payment.exception;
 
 public class InvalidPaymentException extends RuntimeException {
     public InvalidPaymentException() {

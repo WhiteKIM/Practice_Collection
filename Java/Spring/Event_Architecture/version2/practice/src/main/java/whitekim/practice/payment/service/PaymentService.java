@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import whitekim.practice.common.config.AppConfig;
-import whitekim.practice.common.exception.InvalidPaymentException;
+import whitekim.practice.payment.exception.InvalidPaymentException;
 import whitekim.practice.payment.dto.request.ChargePaymentInfo;
 import whitekim.practice.payment.dto.response.RespPaymentInfo;
 import whitekim.practice.payment.entity.Payment;

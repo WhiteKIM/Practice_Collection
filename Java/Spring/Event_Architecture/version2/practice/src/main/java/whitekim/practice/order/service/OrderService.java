@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import whitekim.practice.common.exception.NotExistMemberException;
-import whitekim.practice.common.exception.NotExistOrderException;
+import whitekim.practice.order.exception.NotExistOrderException;
 import whitekim.practice.item.service.ItemService;
 import whitekim.practice.member.service.MemberService;
 import whitekim.practice.order.dto.request.ReqOrderInfo;

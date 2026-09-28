@@ -1,4 +1,4 @@
-package whitekim.practice.common.exception;
+package whitekim.practice.order.exception;
 
 public class NotExistOrderException extends RuntimeException {
     public NotExistOrderException(Long orderId) {
