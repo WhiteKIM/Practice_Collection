@@ -1,0 +1,244 @@
+package whitekim.practice;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.modulith.core.ApplicationModules;
+import org.springframework.transaction.annotation.Transactional;
+import whitekim.practice.common.config.AppConfig;
+import whitekim.practice.item.exception.NotEnoughItemStockException;
+import whitekim.practice.item.dto.request.RegisterItemForm;
+import whitekim.practice.item.dto.response.RespItemInfo;
+import whitekim.practice.item.service.ItemService;
+import whitekim.practice.member.dto.request.JoinMember;
+import whitekim.practice.member.service.MemberService;
+import whitekim.practice.order.dto.request.ReqOrderInfo;
+import whitekim.practice.order.dto.response.RespOrderInfo;
+import whitekim.practice.order.service.OrderService;
+import whitekim.practice.order.type.OrderStatus;
+import whitekim.practice.payment.dto.response.RespPaymentInfo;
+import whitekim.practice.payment.service.PaymentService;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+@SpringBootTest
+class PracticeApplicationTests {
+	@Autowired
+	private ItemService itemService;
+	@Autowired
+	private OrderService orderService;
+	@Autowired
+	private MemberService memberService;
+	@Autowired
+	private PaymentService paymentService;
+	@Autowired
+	private AppConfig config;
+
+	@BeforeEach
+	void setUp() {
+		config.changePaymentState(true);
+	}
+
+	/* ====================== PHASE 0 ===================================================*/
+	/**
+	 * ① 재고 차감 성공
+	 * 재고 10
+	 * 주문 2
+	 * → 재고 8
+	 */
+	@Test
+	void scenario1() {
+		// 데이터 생성
+		JoinMember joinMember = new JoinMember("test", "test@test.com");
+		RegisterItemForm itemForm = new RegisterItemForm(10L, "사과", BigDecimal.valueOf(1000));
+
+		Long memberId = memberService.joinMember(joinMember);
+		Long itemId = itemService.registerItemInfo(itemForm);
+
+		ReqOrderInfo reqOrderInfo = new ReqOrderInfo(itemId, memberId, 2L);
+		orderService.processOrder(reqOrderInfo);
+
+		RespItemInfo itemInfo = itemService.getItemInfo(itemId);
+		assertThat(itemInfo.itemStock()).isEqualTo(8L);
+	}
+
+	/**
+	 *  ② 재고 부족
+	 * 	 재고 1
+	 * 	 주문 2
+	 * 	 → NotEnoughItemStockException
+	 */
+	@Test
+	void scenario2() {
+		JoinMember joinMember = new JoinMember("test", "test@test.com");
+		RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
+
+		Long memberId = memberService.joinMember(joinMember);
+		Long itemId = itemService.registerItemInfo(itemForm);
+
+		ReqOrderInfo reqOrderInfo = new ReqOrderInfo(itemId, memberId, 2L);
+		assertThatThrownBy(() -> orderService.processOrder(reqOrderInfo))
+				.isInstanceOf(NotEnoughItemStockException.class);
+	}
+
+	/**
+	 * ③ 정상 주문
+	 * → Payment 생성
+	 * → paymentId 존재
+	 * → purchasePrice 존재
+	 * → OrderStatus APPROVED
+	 * → 재고 감소
+	 */
+	@Test
+	void scenario3() {
+		JoinMember joinMember = new JoinMember("test", "test@test.com");
+		RegisterItemForm itemForm = new RegisterItemForm(10L, "사과", BigDecimal.valueOf(1000));
+
+		Long memberId = memberService.joinMember(joinMember);
+		Long itemId = itemService.registerItemInfo(itemForm);
+
+		ReqOrderInfo reqOrderInfo = new ReqOrderInfo(itemId, memberId, 2L);
+		Long orderId = orderService.processOrder(reqOrderInfo);
+
+		RespItemInfo itemInfo = itemService.getItemInfo(itemId);
+		RespOrderInfo orderInfo = orderService.getOrderInfo(orderId);
+		RespPaymentInfo paymentInfo = paymentService.getPaymentInfo(orderInfo.paymentId());
+
+		// 재고 정상감소
+		assertThat(itemInfo.itemStock()).isEqualTo(8L);
+
+		// 결제 처리 성공 및 결제금액 확인
+		assertThat(paymentInfo.chargePrice())
+				.isEqualByComparingTo(BigDecimal.valueOf(2000));
+
+		// 주문상태 : 승인
+		assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.APPROVED);
+	}
+
+	/**
+	 * ④ 주문 실패 시 rollback
+	 * 예외 발생
+	 * → Order 생성 안 됨
+	 * → Payment 생성 안 됨
+	 * → 재고 유지
+	 */
+	@Test
+	void scenario4() {
+		// 데이터 생성
+		// 데이터 생성
+		JoinMember joinMember = new JoinMember("test", "test@test.com");
+		RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
+
+		Long memberId = memberService.joinMember(joinMember);
+		Long itemId = itemService.registerItemInfo(itemForm);
+
+		ReqOrderInfo reqOrderInfo = new ReqOrderInfo(itemId, memberId, 2L);
+		assertThatThrownBy(() -> orderService.processOrder(reqOrderInfo))
+				.isInstanceOf(NotEnoughItemStockException.class);
+
+		RespItemInfo itemInfo = itemService.getItemInfo(itemId);
+
+		List<RespOrderInfo> allOrderInfo = orderService.getAllOrderInfo();
+		List<RespPaymentInfo> allPaymentInfo = paymentService.getAllPaymentInfo();
+
+		System.out.println("주문 정보 확인");
+		assertThat(allOrderInfo.size()).isEqualTo(0);	// 생성된 주문이 있으면 안돼요
+
+		System.out.println("결제 정보 확인");
+		assertThat(allPaymentInfo.size()).isEqualTo(0);	// 생성된 결제정보는 있으면 안돼요
+
+		// 수량 변함 없음
+		assertThat(itemInfo.itemStock()).isEqualTo(1L);
+	}
+
+	/**
+	 * ⑤ 잘못된 주문 수량
+	 * 0 또는 음수
+	 * → 주문 거부
+	 * → 재고 변하지 않음
+	 */
+	@Test
+	@Transactional
+	void scenario5() {
+		// 데이터 생성
+		JoinMember joinMember = new JoinMember("test", "test@test.com");
+		RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
+
+		Long memberId = memberService.joinMember(joinMember);
+		Long itemId = itemService.registerItemInfo(itemForm);
+
+		assertThatThrownBy(() -> new ReqOrderInfo(itemId, memberId, -2L))
+				.isInstanceOf(IllegalArgumentException.class);
+
+		assertThatThrownBy(() -> new ReqOrderInfo(itemId, memberId, 0L))
+				.isInstanceOf(IllegalArgumentException.class);
+
+		RespItemInfo itemInfo = itemService.getItemInfo(itemId);
+		assertThat(itemInfo.itemStock()).isEqualTo(1L);
+	}
+	/* ====================== PHASE 0 END================================================*/
+	/* ====================== PHASE 1 ===================================================*/
+
+	// 주문 결제처리 완료 => 주문상태 : 승인 | 결제 ID 세팅
+	@Test
+	void scenario6() {
+		// 결제처리 : 가능
+		config.changePaymentState(true);
+
+		// 데이터 생성
+		JoinMember joinMember = new JoinMember("test", "test@test.com");
+		RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
+
+		Long memberId = memberService.joinMember(joinMember);
+		Long itemId = itemService.registerItemInfo(itemForm);
+
+		Long orderId = orderService.processOrder(new ReqOrderInfo(itemId, memberId, 1L));
+		RespOrderInfo orderInfo = orderService.getOrderInfo(orderId);
+
+		assertThat(orderId).isNotNull();
+		assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.APPROVED);
+		assertThat(orderInfo.paymentId()).isNotNull();
+	}
+
+	// 주문 결제처리 실패 => 주문상태 : 실패 | 결제정보 : X
+	@Test
+	void scenario7() {
+		// 결제처리 : 불가능
+		config.changePaymentState(false);
+
+		// 데이터 생성
+		JoinMember joinMember = new JoinMember("test", "test@test.com");
+		RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
+
+		Long memberId = memberService.joinMember(joinMember);
+		Long itemId = itemService.registerItemInfo(itemForm);
+
+		Long orderId = orderService.processOrder(new ReqOrderInfo(itemId, memberId, 1L));
+		RespOrderInfo orderInfo = orderService.getOrderInfo(orderId);
+
+		assertThat(orderId).isNotNull();
+		assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.FAILED);
+
+		List<RespPaymentInfo> allPaymentInfo = paymentService.getAllPaymentInfo();
+
+		// 생성된 결제 X
+		assertThat(allPaymentInfo.size()).isEqualTo(0);
+
+		// 아이템 재고 원복 확인
+		RespItemInfo itemInfo = itemService.getItemInfo(itemId);
+		assertThat(itemInfo.itemStock()).isEqualTo(1L);
+	}
+
+	/* ====================== PHASE 1  END ===================================================*/
+	/* ====================== PHASE 2  START ==================================================*/
+	@Test
+	void verifyModularity() {
+		ApplicationModules.of(PracticeApplication.class)
+				.verify();
+	}
+}

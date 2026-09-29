@@ -1,4 +1,4 @@
-package whitekim.practice.payment.event;
+package whitekim.practice.common.event;
 
 import java.math.BigDecimal;
 

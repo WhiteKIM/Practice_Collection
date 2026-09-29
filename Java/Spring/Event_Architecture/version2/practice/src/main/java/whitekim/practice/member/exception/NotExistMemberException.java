@@ -1,4 +1,4 @@
-package whitekim.practice.common.exception;
+package whitekim.practice.member.exception;
 
 public class NotExistMemberException extends RuntimeException {
     public NotExistMemberException() {
