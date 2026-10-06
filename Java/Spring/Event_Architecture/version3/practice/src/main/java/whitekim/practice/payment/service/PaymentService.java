@@ -2,6 +2,7 @@ package whitekim.practice.payment.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,9 @@ public class PaymentService {
     private final AppConfig config;
     private final ApplicationEventPublisher publisher;
 
+    // phase 3
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+
     public RespPaymentInfo getPaymentInfo(Long paymentId) {
         Payment payment = paymentRepository
                 .findById(paymentId)
@@ -37,6 +41,8 @@ public class PaymentService {
     public void chargePayment(ChargePaymentInfo chargeInfo) {
         if(!config.isAvailableProcessPayment()) {
             publisher.publishEvent(new PaymentFailedEvent(chargeInfo.orderId()));
+            kafkaTemplate.send("payment-failed-event", new PaymentFailedEvent(chargeInfo.orderId()));
+
             throw new InvalidPaymentException("현재 결제를 처리할 수 없습니다.");
         }
 
@@ -45,7 +51,7 @@ public class PaymentService {
 
         Payment paymentResult = paymentRepository.save(payment);
         publisher.publishEvent(new PaymentSuccessEvent(chargeInfo.orderId(), paymentResult.getId(), chargeInfo.chargePrice()));
-
+        kafkaTemplate.send("payment-success-event", new PaymentSuccessEvent(chargeInfo.orderId(), paymentResult.getId(), chargeInfo.chargePrice()));
     }
 
     public List<RespPaymentInfo> getAllPaymentInfo() {

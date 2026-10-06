@@ -241,4 +241,7 @@ class PracticeApplicationTests {
 		ApplicationModules.of(PracticeApplication.class)
 				.verify();
 	}
+
+	/* ====================== PHASE 2  END ===================================================*/
+	/* ====================== PHASE 3  START ==================================================*/
 }

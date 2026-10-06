@@ -2,6 +2,7 @@ package whitekim.practice.order.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,9 @@ public class OrderService {
     private final ItemRollbackApi itemRollbackApi;
     private final OrderRepository orderRepository;
     private final ApplicationEventPublisher publisher;
+
+    // phase 3
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     public RespOrderInfo getOrderInfo(Long orderId) {
         Order order = orderRepository
@@ -58,6 +62,7 @@ public class OrderService {
 
         // 청구 전송
         publisher.publishEvent(new OrderRequestPaymentEvent(order.getId(), order.getMemberId(), purchasePrice));
+        kafkaTemplate.send("order-request-payment-event", new OrderRequestPaymentEvent(order.getId(), order.getMemberId(), purchasePrice));
 
         return order.getId();
     }
