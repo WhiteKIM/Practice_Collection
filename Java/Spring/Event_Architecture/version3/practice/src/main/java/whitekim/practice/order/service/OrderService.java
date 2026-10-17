@@ -1,7 +1,6 @@
 package whitekim.practice.order.service;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -19,7 +18,10 @@ import whitekim.practice.order.type.OrderStatus;
 import whitekim.practice.common.event.OrderRequestPaymentEvent;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.StringJoiner;
 
 @Service
 @Transactional
@@ -29,7 +31,6 @@ public class OrderService {
     private final ItemPurchaseApi itemPurchaseApi;
     private final ItemRollbackApi itemRollbackApi;
     private final OrderRepository orderRepository;
-    private final ApplicationEventPublisher publisher;
 
     // phase 3
     private final KafkaTemplate<String, Object> kafkaTemplate;
@@ -60,9 +61,16 @@ public class OrderService {
         // 주문 전 예샹결제 금액 반환
         BigDecimal purchasePrice = itemPurchaseApi.purchase(orderInfo.itemId(), orderInfo.purchaseCount());
 
+        // 메시지 키 생성
+        String nowTime = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String key = new StringJoiner("-")
+                .add(nowTime)
+                .add(Long.toString(order.getId()))
+                .add(Long.toString(order.getMemberId()))
+                .toString();
+
         // 청구 전송
-        publisher.publishEvent(new OrderRequestPaymentEvent(order.getId(), order.getMemberId(), purchasePrice));
-        kafkaTemplate.send("order-request-payment-event", new OrderRequestPaymentEvent(order.getId(), order.getMemberId(), purchasePrice));
+        kafkaTemplate.send("order-request-payment-event", key, new OrderRequestPaymentEvent(order.getId(), order.getMemberId(), purchasePrice));
 
         return order.getId();
     }

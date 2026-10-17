@@ -1,7 +1,6 @@
 package whitekim.practice.payment.service;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,7 +15,10 @@ import whitekim.practice.common.event.PaymentSuccessEvent;
 import whitekim.practice.payment.repository.PaymentRepository;
 import whitekim.practice.payment.type.PaymentStatus;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.StringJoiner;
 
 @Service
 @Transactional
@@ -24,7 +26,6 @@ import java.util.List;
 public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final AppConfig config;
-    private final ApplicationEventPublisher publisher;
 
     // phase 3
     private final KafkaTemplate<String, Object> kafkaTemplate;
@@ -39,9 +40,16 @@ public class PaymentService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void chargePayment(ChargePaymentInfo chargeInfo) {
+        String nowTime = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+
         if(!config.isAvailableProcessPayment()) {
-            publisher.publishEvent(new PaymentFailedEvent(chargeInfo.orderId()));
-            kafkaTemplate.send("payment-failed-event", new PaymentFailedEvent(chargeInfo.orderId()));
+            // 메시지 키 생성
+            String key = new StringJoiner("-")
+                    .add(nowTime)
+                    .add(Long.toString(chargeInfo.orderId()))
+                    .toString();
+
+            kafkaTemplate.send("payment-failed-event", key, new PaymentFailedEvent(chargeInfo.orderId()));
 
             throw new InvalidPaymentException("현재 결제를 처리할 수 없습니다.");
         }
@@ -49,9 +57,16 @@ public class PaymentService {
         Payment payment = chargeInfo.toEntity();
         payment.changePaymentStatus(PaymentStatus.CONFIRM);
 
+        // 메시지 키 생성
         Payment paymentResult = paymentRepository.save(payment);
-        publisher.publishEvent(new PaymentSuccessEvent(chargeInfo.orderId(), paymentResult.getId(), chargeInfo.chargePrice()));
-        kafkaTemplate.send("payment-success-event", new PaymentSuccessEvent(chargeInfo.orderId(), paymentResult.getId(), chargeInfo.chargePrice()));
+
+        String key = new StringJoiner("-")
+                .add(nowTime)
+                .add(Long.toString(chargeInfo.orderId()))
+                .add(Long.toString(paymentResult.getId()))
+                .toString();
+
+        kafkaTemplate.send("payment-success-event", key, new PaymentSuccessEvent(chargeInfo.orderId(), paymentResult.getId(), chargeInfo.chargePrice()));
     }
 
     public List<RespPaymentInfo> getAllPaymentInfo() {
