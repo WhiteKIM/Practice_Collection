@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import whitekim.practice.common.config.AppConfig;
+import whitekim.practice.common.utils.IdempotencyKeyUtils;
 import whitekim.practice.payment.exception.InvalidPaymentException;
 import whitekim.practice.payment.dto.request.ChargePaymentInfo;
 import whitekim.practice.payment.dto.response.RespPaymentInfo;
@@ -15,10 +16,7 @@ import whitekim.practice.common.event.PaymentSuccessEvent;
 import whitekim.practice.payment.repository.PaymentRepository;
 import whitekim.practice.payment.type.PaymentStatus;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.StringJoiner;
 
 @Service
 @Transactional
@@ -40,14 +38,9 @@ public class PaymentService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void chargePayment(ChargePaymentInfo chargeInfo) {
-        String nowTime = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-
         if(!config.isAvailableProcessPayment()) {
             // 메시지 키 생성
-            String key = new StringJoiner("-")
-                    .add(nowTime)
-                    .add(Long.toString(chargeInfo.orderId()))
-                    .toString();
+            String key = IdempotencyKeyUtils.generateKey(chargeInfo.orderId());
 
             kafkaTemplate.send("payment-failed-event", key, new PaymentFailedEvent(chargeInfo.orderId()));
 
@@ -60,11 +53,7 @@ public class PaymentService {
         // 메시지 키 생성
         Payment paymentResult = paymentRepository.save(payment);
 
-        String key = new StringJoiner("-")
-                .add(nowTime)
-                .add(Long.toString(chargeInfo.orderId()))
-                .add(Long.toString(paymentResult.getId()))
-                .toString();
+        String key = IdempotencyKeyUtils.generateKey(chargeInfo.orderId());
 
         kafkaTemplate.send("payment-success-event", key, new PaymentSuccessEvent(chargeInfo.orderId(), paymentResult.getId(), chargeInfo.chargePrice()));
     }

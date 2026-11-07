@@ -5,6 +5,8 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import whitekim.practice.common.utils.IdempotencyKeyUtils;
+import whitekim.practice.item.exception.NotEnoughItemStockException;
 import whitekim.practice.member.exception.NotExistMemberException;
 import whitekim.practice.item.api.ItemPurchaseApi;
 import whitekim.practice.item.api.ItemRollbackApi;
@@ -18,10 +20,7 @@ import whitekim.practice.order.type.OrderStatus;
 import whitekim.practice.common.event.OrderRequestPaymentEvent;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.StringJoiner;
 
 @Service
 @Transactional
@@ -62,12 +61,7 @@ public class OrderService {
         BigDecimal purchasePrice = itemPurchaseApi.purchase(orderInfo.itemId(), orderInfo.purchaseCount());
 
         // 메시지 키 생성
-        String nowTime = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String key = new StringJoiner("-")
-                .add(nowTime)
-                .add(Long.toString(order.getId()))
-                .add(Long.toString(order.getMemberId()))
-                .toString();
+        String key = IdempotencyKeyUtils.generateKey(order.getId());
 
         // 청구 전송
         kafkaTemplate.send("order-request-payment-event", key, new OrderRequestPaymentEvent(order.getId(), order.getMemberId(), purchasePrice));
@@ -87,6 +81,21 @@ public class OrderService {
         Order order =
                 orderRepository.findById(orderId).orElseThrow(() -> new NotExistOrderException(orderId));
 
+        // 주문상태 업데이트 : 실패 => 성공 이벤트 발생
+        if(order.getOrderStatus() == OrderStatus.FAILED) {
+            order.changeOrderStatus(OrderStatus.PENDING_RESOLUTION);
+
+            // 재고를 반환했으므로 다시 확보 시도
+            // 아이템 재고 확보 시도
+            try {
+                itemPurchaseApi.purchase(order.getItemId(), order.getPurchaseCount());
+            } catch (NotEnoughItemStockException e) {
+                order.changeOrderStatus(OrderStatus.STOCK_RESERVATION_FAILED);
+            }
+
+            return;
+        }
+
         // 주문 최종 생성
         order.processPayment(paymentId, chargeAmount);
     }
@@ -99,5 +108,14 @@ public class OrderService {
         // 주문상태 업데이트 : 실패
         order.changeOrderStatus(OrderStatus.FAILED);
         itemRollbackApi.rollbackInventory(order.getItemId(), order.getPurchaseCount());
+    }
+
+    // 주문에 대한 처리 상태 반환
+    public boolean getOrderStatus(Long orderId) {
+        Order order =
+                orderRepository.findById(orderId).orElseThrow(() -> new NotExistOrderException(orderId));
+
+        // 주문 상태 확인
+        return !(order.getOrderStatus() == OrderStatus.WAITING || order.getOrderStatus() == OrderStatus.FAILED);
     }
 }
