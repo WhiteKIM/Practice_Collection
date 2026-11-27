@@ -28,10 +28,10 @@ import whitekim.practice.payment.service.PaymentService;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.StringJoiner;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -134,7 +134,7 @@ class PracticeKafkaTest {
 
     // 중복 메시지 발송
     @Test
-    void sendRequestDuplicatePaymentMessage() {
+    void sendRequestDuplicatePaymentMessage() throws ExecutionException, InterruptedException, TimeoutException {
         JoinMember joinMember = new JoinMember("test", "test@test.com");
         RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
 
@@ -160,7 +160,9 @@ class PracticeKafkaTest {
         // 강제로 같은 메시지를 한번 더 전송
         // 주문요청 메시지 ID
         key = IdempotencyKeyUtils.generateKey(orderId);
-        kafkaTemplate.send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)));
+       kafkaTemplate
+               .send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)))
+                    .get(10, TimeUnit.SECONDS);
 
         // 이벤트 중복전송 확인
         verify(paymentEventListener, timeout(30000).times(2))
@@ -183,7 +185,7 @@ class PracticeKafkaTest {
 
     // 결제성공 이벤트 중복 발송
     @Test
-    void sendDuplicatePaymentSuccessMessage() {
+    void sendDuplicatePaymentSuccessMessage() throws ExecutionException, InterruptedException, TimeoutException {
         JoinMember joinMember = new JoinMember("test", "test@test.com");
         RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
 
@@ -217,7 +219,9 @@ class PracticeKafkaTest {
         // 강제로 같은 메시지를 한번 더 전송
         // 결제성공 메시지 발송
         key = IdempotencyKeyUtils.generateKey(orderId);
-        kafkaTemplate.send("payment-success-event", key, new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)));
+        kafkaTemplate
+                .send("payment-success-event", key, new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)))
+                        .get(10, TimeUnit.SECONDS);
 
         verify(orderEventListener, timeout(30000).times(2))
                 .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)), key);
@@ -241,7 +245,7 @@ class PracticeKafkaTest {
 
     // 결제 실패 이벤트 중복 발송
     @Test
-    void sendDuplicateFailedPaymentMessage() {
+    void sendDuplicateFailedPaymentMessage() throws ExecutionException, InterruptedException, TimeoutException {
         config.changePaymentState(false);
 
         JoinMember joinMember = new JoinMember("test", "test@test.com");
@@ -271,7 +275,9 @@ class PracticeKafkaTest {
         // 강제로 같은 메시지를 한번 더 전송
         // 결제 실패 메시지 발송
         key = IdempotencyKeyUtils.generateKey(orderId);
-        kafkaTemplate.send("payment-failed-event", key, new PaymentFailedEvent(orderId));
+        kafkaTemplate
+                .send("payment-failed-event", key, new PaymentFailedEvent(orderId))
+                        .get(10, TimeUnit.SECONDS);
 
         // 이벤트 전달 확인
         verify(orderEventListener, timeout(30000).times(2))
@@ -292,7 +298,7 @@ class PracticeKafkaTest {
 
     // 결제 실패 후 성공 이벤트 발송
     @Test
-    void sendFailToSuccessPaymentMessage() {
+    void sendFailToSuccessPaymentMessage() throws ExecutionException, InterruptedException, TimeoutException {
         config.changePaymentState(false);
 
         JoinMember joinMember = new JoinMember("test", "test@test.com");
@@ -325,11 +331,13 @@ class PracticeKafkaTest {
         // 주문 결제요청 메시지 전송
         config.changePaymentState(true);
         key = IdempotencyKeyUtils.generateKey(orderId);
-        kafkaTemplate.send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)));
+        kafkaTemplate
+                .send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)))
+                        .get(10, TimeUnit.SECONDS);
 
         // 결제요청 이벤트 발행
         // 이벤트 전달 확인
-        verify(paymentEventListener, timeout(30000))
+        verify(paymentEventListener, timeout(30000).times(2))
                 .handleProcessPayment(new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)), key);
         await()
                 .atMost(Duration.ofSeconds(30))
