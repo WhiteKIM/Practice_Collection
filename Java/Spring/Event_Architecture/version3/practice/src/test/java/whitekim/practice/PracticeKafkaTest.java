@@ -355,12 +355,12 @@ class PracticeKafkaTest {
 
                     assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.PENDING_RESOLUTION);
                     assertThat(payments).hasSize(1);
-                });
 
-        // 결제 성공 이벤트 확인
-        Long paymentId = orderService.getOrderInfo(orderId).paymentId();
-        key = IdempotencyKeyUtils.generateKey(orderId);
-        verify(orderEventListener, timeout(30000))
-                .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key);
+                    // 결제 성공 이벤트 확인
+                    Long paymentId = orderService.getOrderInfo(orderId).paymentId();
+                    String key1 = IdempotencyKeyUtils.generateKey(orderId);
+                    verify(orderEventListener, timeout(30000))
+                            .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key1);
+                });
     }
 }
