@@ -45,4 +45,13 @@ public class Order {
     public void changeOrderStatus(OrderStatus orderStatus) {
         this.orderStatus = orderStatus;
     }
+
+    /**
+     * 결제정보는 있지만, 정상적으로 처리된 경우가 아닌 경우
+     * 결제 정보만 세팅해둠
+     * @param paymentId - 처리된 결제정보 ID
+     */
+    public void holdingPaymentInfo(Long paymentId) {
+        this.paymentId = paymentId;
+    }
 }
