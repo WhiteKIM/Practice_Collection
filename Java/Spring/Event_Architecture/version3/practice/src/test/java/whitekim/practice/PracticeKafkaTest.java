@@ -151,7 +151,7 @@ class PracticeKafkaTest {
 
         // 이번트 전송 확인
         verify(paymentEventListener, timeout(30000))
-                .handleProcessPayment(new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)), key);
+                .handleProcessPayment(new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000).setScale(2)), key);
 
         await()
                 .atMost(Duration.ofSeconds(15))
@@ -167,12 +167,12 @@ class PracticeKafkaTest {
         // 주문요청 메시지 ID
         key = IdempotencyKeyUtils.generateKey(orderId);
        kafkaTemplate
-               .send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)))
+               .send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000).setScale(2)))
                     .get(10, TimeUnit.SECONDS);
 
         // 이벤트 중복전송 확인
         verify(paymentEventListener, timeout(30000).times(2))
-                .handleProcessPayment(new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)), key);
+                .handleProcessPayment(new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000).setScale(2)), key);
 
         await()
                 .atMost(Duration.ofSeconds(15))
@@ -220,17 +220,17 @@ class PracticeKafkaTest {
         Long paymentId = orderService.getOrderInfo(orderId).paymentId();
 
         verify(orderEventListener, timeout(30000))
-                .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)), key);
+                .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key);
 
         // 강제로 같은 메시지를 한번 더 전송
         // 결제성공 메시지 발송
         key = IdempotencyKeyUtils.generateKey(orderId);
         kafkaTemplate
-                .send("payment-success-event", key, new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)))
+                .send("payment-success-event", key, new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)))
                         .get(10, TimeUnit.SECONDS);
 
         verify(orderEventListener, timeout(30000).times(2))
-                .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)), key);
+                .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key);
 
         await()
                 .atMost(Duration.ofSeconds(30))
@@ -338,13 +338,13 @@ class PracticeKafkaTest {
         config.changePaymentState(true);
         key = IdempotencyKeyUtils.generateKey(orderId);
         kafkaTemplate
-                .send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)))
+                .send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000).setScale(2)))
                         .get(10, TimeUnit.SECONDS);
 
         // 결제요청 이벤트 발행
         // 이벤트 전달 확인
         verify(paymentEventListener, timeout(30000).times(2))
-                .handleProcessPayment(new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000)), key);
+                .handleProcessPayment(new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000).setScale(2)), key);
         await()
                 .atMost(Duration.ofSeconds(30))
                 .untilAsserted(() -> {
@@ -361,6 +361,6 @@ class PracticeKafkaTest {
         Long paymentId = orderService.getOrderInfo(orderId).paymentId();
         key = IdempotencyKeyUtils.generateKey(orderId);
         verify(orderEventListener, timeout(30000))
-                .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)), key);
+                .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key);
     }
 }
