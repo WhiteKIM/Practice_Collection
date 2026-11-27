@@ -1,5 +1,6 @@
 package whitekim.practice;
 
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 @EnableKafka
+@Slf4j
 @SpringBootTest
 class PracticeKafkaTest {
     @Autowired
@@ -98,6 +100,10 @@ class PracticeKafkaTest {
 
                     String key = IdempotencyKeyUtils.generateKey(orderId);
                     Long paymentId = orderService.getOrderInfo(orderId).paymentId();
+
+                    log.info("[TEST] 주문 ID : {}, 결제 ID : {}, 결제금액 : {}", orderId, paymentId, BigDecimal.valueOf(1000));
+                    log.info("[TEST] 카프카 key : {}", key);
+
                     verify(orderEventListener, timeout(30000))
                             .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)), key);
                 });
