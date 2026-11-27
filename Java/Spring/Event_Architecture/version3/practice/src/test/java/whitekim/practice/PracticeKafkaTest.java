@@ -341,6 +341,9 @@ class PracticeKafkaTest {
                 .send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000).setScale(2)))
                         .get(10, TimeUnit.SECONDS);
 
+        log.info("[TEST] 주문 ID : {}, 주문자 ID : {}, 결제금액 : {}", orderId, memberId, BigDecimal.valueOf(1000).setScale(2));
+        log.info("[TEST] 카프카 key : {}", key);
+
         // 결제요청 이벤트 발행
         // 이벤트 전달 확인
         verify(paymentEventListener, timeout(30000).times(2))
@@ -359,6 +362,10 @@ class PracticeKafkaTest {
                     // 결제 성공 이벤트 확인
                     Long paymentId = orderService.getOrderInfo(orderId).paymentId();
                     String key1 = IdempotencyKeyUtils.generateKey(orderId);
+
+                    log.info("[TEST] 주문 ID : {}, 결제 ID : {}, 결제금액 : {}", orderId, paymentId, BigDecimal.valueOf(1000).setScale(2));
+                    log.info("[TEST] 카프카 key : {}", key1);
+
                     verify(orderEventListener, timeout(30000))
                             .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key1);
                 });
