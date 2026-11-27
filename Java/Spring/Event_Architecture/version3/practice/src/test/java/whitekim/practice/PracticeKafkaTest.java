@@ -101,11 +101,11 @@ class PracticeKafkaTest {
                     String key = IdempotencyKeyUtils.generateKey(orderId);
                     Long paymentId = orderService.getOrderInfo(orderId).paymentId();
 
-                    log.info("[TEST] 주문 ID : {}, 결제 ID : {}, 결제금액 : {}", orderId, paymentId, BigDecimal.valueOf(1000, 2));
+                    log.info("[TEST] 주문 ID : {}, 결제 ID : {}, 결제금액 : {}", orderId, paymentId, BigDecimal.valueOf(1000).setScale(2));
                     log.info("[TEST] 카프카 key : {}", key);
 
                     verify(orderEventListener, timeout(30000))
-                            .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000, 2)), key);
+                            .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key);
                 });
     }
 
