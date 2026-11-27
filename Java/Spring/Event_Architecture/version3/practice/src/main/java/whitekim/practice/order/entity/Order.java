@@ -48,10 +48,12 @@ public class Order {
 
     /**
      * 결제정보는 있지만, 정상적으로 처리된 경우가 아닌 경우
-     * 결제 정보만 세팅해둠
+     * 결제 정보에 대해 세팅
      * @param paymentId - 처리된 결제정보 ID
+     * @param purchasePrice - 결제한 금액정보
      */
-    public void holdingPaymentInfo(Long paymentId) {
+    public void holdingPaymentInfo(Long paymentId, BigDecimal purchasePrice) {
         this.paymentId = paymentId;
+        this.purchasePrice = purchasePrice;
     }
 }

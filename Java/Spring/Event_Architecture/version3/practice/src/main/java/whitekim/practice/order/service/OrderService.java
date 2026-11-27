@@ -84,7 +84,7 @@ public class OrderService {
         // 주문상태 업데이트 : 실패 => 성공 이벤트 발생
         if(order.getOrderStatus() == OrderStatus.FAILED) {
             order.changeOrderStatus(OrderStatus.PENDING_RESOLUTION);
-            order.holdingPaymentInfo(paymentId);
+            order.holdingPaymentInfo(paymentId, chargeAmount);
 
             // 재고를 반환했으므로 다시 확보 시도
             // 아이템 재고 확보 시도

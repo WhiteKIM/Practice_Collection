@@ -246,6 +246,9 @@ class PracticeKafkaTest {
                     assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.APPROVED);
                     assertThat(totalPayAmount).isEqualTo(1000);
                     assertThat(payments).hasSize(1);
+                    
+                    // 추가검증
+                    // #1. 아이템 재고에 대해 중복으로 처리하는지 확인 필요
                 });
     }
 
@@ -299,6 +302,9 @@ class PracticeKafkaTest {
 
                     assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.FAILED);
                     assertThat(payments).hasSize(0);
+
+                    // 추가 검증
+                    // #1. 아이템 재고 중복으로 롤백 시도하는지 확인
                 });
     }
 
@@ -368,6 +374,10 @@ class PracticeKafkaTest {
 
                     verify(orderEventListener, timeout(30000))
                             .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key1);
+
+                    // 추가 검증
+                    // #1. 재고 재확보 실패 및 예외 확인
+                    // #2. 예외 처리후 DB 내 결과값 확인
                 });
     }
 }
