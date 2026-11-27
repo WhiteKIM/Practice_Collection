@@ -95,12 +95,12 @@ class PracticeKafkaTest {
 
                     assertThat(payments).hasSize(1);
                     assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.APPROVED);
-                });
 
-        String key = IdempotencyKeyUtils.generateKey(orderId);
-        Long paymentId = orderService.getOrderInfo(orderId).paymentId();
-        verify(orderEventListener, timeout(30000))
-                .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)), key);
+                    String key = IdempotencyKeyUtils.generateKey(orderId);
+                    Long paymentId = orderService.getOrderInfo(orderId).paymentId();
+                    verify(orderEventListener, timeout(30000))
+                            .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000)), key);
+                });
     }
 
     // 실패 이벤트 발송
@@ -115,10 +115,6 @@ class PracticeKafkaTest {
         Long itemId = itemService.registerItemInfo(itemForm);
         Long orderId = orderService.processOrder(new ReqOrderInfo(itemId, memberId, 1L));
 
-        String key = IdempotencyKeyUtils.generateKey(orderId);
-        verify(orderEventListener, timeout(30000))
-                .failedPaymentProcess(new PaymentFailedEvent(orderId), key);
-
         await()
                 .atMost(Duration.ofSeconds(15))
                 .untilAsserted(() -> {
@@ -129,6 +125,10 @@ class PracticeKafkaTest {
 
                     assertThat(payments).hasSize(0);
                     assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.FAILED);
+
+                    String key = IdempotencyKeyUtils.generateKey(orderId);
+                    verify(orderEventListener, timeout(30000))
+                            .failedPaymentProcess(new PaymentFailedEvent(orderId), key);
                 });
     }
 
