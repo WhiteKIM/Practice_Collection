@@ -15,6 +15,7 @@ import whitekim.practice.common.event.PaymentFailedEvent;
 import whitekim.practice.common.event.PaymentSuccessEvent;
 import whitekim.practice.common.utils.IdempotencyKeyUtils;
 import whitekim.practice.item.dto.request.RegisterItemForm;
+import whitekim.practice.item.dto.response.RespItemInfo;
 import whitekim.practice.item.service.ItemService;
 import whitekim.practice.member.dto.request.JoinMember;
 import whitekim.practice.member.service.MemberService;
@@ -214,6 +215,8 @@ class PracticeKafkaTest {
 
                     assertThat(payments).hasSize(1);
                     assertThat(totalPayAmount).isEqualTo(1000);
+                    RespItemInfo itemInfo = itemService.getItemInfo(orderInfo.itemId());
+                    assertThat(itemInfo.itemStock()).isEqualTo(0);
                 });
 
         String key = IdempotencyKeyUtils.generateKey(orderId);
@@ -249,6 +252,8 @@ class PracticeKafkaTest {
                     
                     // 추가검증
                     // #1. 아이템 재고에 대해 중복으로 처리하는지 확인 필요
+                    RespItemInfo itemInfo = itemService.getItemInfo(orderInfo.itemId());
+                    assertThat(itemInfo.itemStock()).isEqualTo(0);
                 });
     }
 
@@ -279,6 +284,8 @@ class PracticeKafkaTest {
                             paymentService.getAllPaymentInfo();
 
                     assertThat(payments).hasSize(0);
+                    RespItemInfo itemInfo = itemService.getItemInfo(orderInfo.itemId());
+                    assertThat(itemInfo.itemStock()).isEqualTo(1);
                 });
 
         // 강제로 같은 메시지를 한번 더 전송
@@ -305,6 +312,8 @@ class PracticeKafkaTest {
 
                     // 추가 검증
                     // #1. 아이템 재고 중복으로 롤백 시도하는지 확인
+                    RespItemInfo itemInfo = itemService.getItemInfo(orderInfo.itemId());
+                    assertThat(itemInfo.itemStock()).isEqualTo(1);
                 });
     }
 
@@ -338,7 +347,7 @@ class PracticeKafkaTest {
 
                     assertThat(payments).hasSize(0);
                 });
-
+        
         // 주문 재시도
         // 주문 결제요청 메시지 전송
         config.changePaymentState(true);
@@ -374,10 +383,149 @@ class PracticeKafkaTest {
 
                     verify(orderEventListener, timeout(30000))
                             .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key1);
+                    
+                });
+    }
 
-                    // 추가 검증
-                    // #1. 재고 재확보 실패 및 예외 확인
-                    // #2. 예외 처리후 DB 내 결과값 확인
+    // 결제 실패 후 성공 이벤트 발송
+    // 아이템 재고확보 실패
+    @Test
+    void sendFailToSuccessPaymentMessageButItemStockIsEmpty() throws ExecutionException, InterruptedException, TimeoutException {
+        config.changePaymentState(false);
+
+        JoinMember joinMember = new JoinMember("test", "test@test.com");
+        RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
+
+        Long memberId = memberService.joinMember(joinMember);
+        Long itemId = itemService.registerItemInfo(itemForm);
+
+        Long orderId = orderService.processOrder(new ReqOrderInfo(itemId, memberId, 1L));
+
+        // 이벤트 전달 확인
+        // 결제 실패
+        String key = IdempotencyKeyUtils.generateKey(orderId);
+        verify(orderEventListener, timeout(30000))
+                .failedPaymentProcess(new PaymentFailedEvent(orderId), key);
+
+        await()
+                .atMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> {
+                    RespOrderInfo orderInfo = orderService.getOrderInfo(orderId);
+
+                    assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.FAILED);
+                    List<RespPaymentInfo> payments =
+                            paymentService.getAllPaymentInfo();
+
+                    assertThat(payments).hasSize(0);
+                });
+
+        // 재고 삭제
+        itemService.purchase(itemId, 1L);
+
+        // 주문 재시도
+        // 주문 결제요청 메시지 전송
+        config.changePaymentState(true);
+        key = IdempotencyKeyUtils.generateKey(orderId);
+        kafkaTemplate
+                .send("order-request-payment-event", key, new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000).setScale(2)))
+                .get(10, TimeUnit.SECONDS);
+
+        log.info("[TEST] 주문 ID : {}, 주문자 ID : {}, 결제금액 : {}", orderId, memberId, BigDecimal.valueOf(1000).setScale(2));
+        log.info("[TEST] 카프카 key : {}", key);
+
+        // 결제요청 이벤트 발행
+        // 이벤트 전달 확인
+        verify(paymentEventListener, timeout(30000).times(2))
+                .handleProcessPayment(new OrderRequestPaymentEvent(orderId, memberId, BigDecimal.valueOf(1000).setScale(2)), key);
+        await()
+                .atMost(Duration.ofSeconds(30))
+                .untilAsserted(() -> {
+                    RespOrderInfo orderInfo = orderService.getOrderInfo(orderId);
+
+                    List<RespPaymentInfo> payments =
+                            paymentService.getAllPaymentInfo();
+
+                    assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.STOCK_RESERVATION_FAILED);
+                    assertThat(payments).hasSize(1);
+
+                    // 결제 성공 이벤트 확인
+                    Long paymentId = orderService.getOrderInfo(orderId).paymentId();
+                    String key1 = IdempotencyKeyUtils.generateKey(orderId);
+
+                    log.info("[TEST] 주문 ID : {}, 결제 ID : {}, 결제금액 : {}", orderId, paymentId, BigDecimal.valueOf(1000).setScale(2));
+                    log.info("[TEST] 카프카 key : {}", key1);
+
+                    verify(orderEventListener, timeout(30000))
+                            .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key1);
+
+                });
+    }
+
+    // 결제성공 이벤트 중복 발송
+    @Test
+    void sendPaymentSuccessToFailMessage() throws ExecutionException, InterruptedException, TimeoutException {
+        JoinMember joinMember = new JoinMember("test", "test@test.com");
+        RegisterItemForm itemForm = new RegisterItemForm(1L, "사과", BigDecimal.valueOf(1000));
+
+        Long memberId = memberService.joinMember(joinMember);
+        Long itemId = itemService.registerItemInfo(itemForm);
+        Long orderId = orderService.processOrder(new ReqOrderInfo(itemId, memberId, 1L));
+
+        await()
+                .atMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> {
+                    RespOrderInfo orderInfo = orderService.getOrderInfo(orderId);
+
+                    assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.APPROVED);
+                    List<RespPaymentInfo> payments =
+                            paymentService.getAllPaymentInfo();
+
+                    int totalPayAmount = payments.stream()
+                            .mapToInt(p -> p.chargePrice().intValue())
+                            .sum();
+
+                    assertThat(payments).hasSize(1);
+                    assertThat(totalPayAmount).isEqualTo(1000);
+                    RespItemInfo itemInfo = itemService.getItemInfo(orderInfo.itemId());
+                    assertThat(itemInfo.itemStock()).isEqualTo(0);
+                });
+
+        String key = IdempotencyKeyUtils.generateKey(orderId);
+        Long paymentId = orderService.getOrderInfo(orderId).paymentId();
+
+        verify(orderEventListener, timeout(30000))
+                .successPaymentProcess(new PaymentSuccessEvent(orderId, paymentId, BigDecimal.valueOf(1000).setScale(2)), key);
+
+        // 강제로 같은 메시지를 한번 더 전송
+        // 결제실패 메시지 발송
+        key = IdempotencyKeyUtils.generateKey(orderId);
+        kafkaTemplate
+                .send("payment-failed-event", key, new PaymentFailedEvent(orderId))
+                .get(10, TimeUnit.SECONDS);
+
+        verify(orderEventListener, timeout(30000))
+                .failedPaymentProcess(new PaymentFailedEvent(orderId), key);
+
+        // 이전 결제성공에 따라 실패결과가 반영되어선 안된다.
+        await()
+                .atMost(Duration.ofSeconds(30))
+                .untilAsserted(() -> {
+                    RespOrderInfo orderInfo = orderService.getOrderInfo(orderId);
+                    List<RespPaymentInfo> payments =
+                            paymentService.getAllPaymentInfo();
+
+                    int totalPayAmount = payments.stream()
+                            .mapToInt(p -> p.chargePrice().intValue())
+                            .sum();
+
+                    assertThat(orderInfo.orderStatus()).isEqualTo(OrderStatus.APPROVED);
+                    assertThat(totalPayAmount).isEqualTo(1000);
+                    assertThat(payments).hasSize(1);
+
+                    // 추가검증
+                    // #1. 아이템 재고에 대해 중복으로 처리하는지 확인 필요
+                    RespItemInfo itemInfo = itemService.getItemInfo(orderInfo.itemId());
+                    assertThat(itemInfo.itemStock()).isEqualTo(0);
                 });
     }
 }
